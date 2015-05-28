@@ -1,0 +1,231 @@
+package main;
+
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+
+import javax.imageio.ImageIO;
+
+import Utils.Utils;
+import main.Document.Line;
+import main.Document.Word;
+
+public class VerticalProjectionProfile {
+
+	int height;
+	int width;
+	int[][] image;
+	public static int picNum = 1;
+	BufferedImage lineImage;
+	private final int DESIRED_WIDTH = 25;
+	private final int DESIRED_HEIGHT = 25;
+
+	public VerticalProjectionProfile(int[][] image) {
+		this.image = image;
+		this.height = image.length;
+		this.width = image[0].length;
+		this.lineImage = Utils.generateImage(image);
+	}
+
+	private class ProjectionProfile {
+		private int startingCol;
+		private int endingCol;
+		private int highestNumberofPixels;
+		private boolean isGap;
+
+		// private int grandTotal;
+
+		ProjectionProfile() {
+			highestNumberofPixels = 0;
+		}
+
+		public int getStartingCol() {
+			return startingCol;
+		}
+
+		public void setStartingCol(int startingCol) {
+			this.startingCol = startingCol;
+		}
+
+		public int getEndingCol() {
+			return endingCol;
+		}
+
+		public void setEndingCol(int endingCol) {
+			this.endingCol = endingCol;
+		}
+
+		public int getHighestNumberofPixels() {
+			return highestNumberofPixels;
+		}
+
+		public void setHighestNumberofPixels(int highestNumberofPixels) {
+			this.highestNumberofPixels = highestNumberofPixels;
+		}
+
+		public boolean isGap() {
+			return isGap;
+		}
+
+		public void setGap(boolean isGap) {
+			this.isGap = isGap;
+		}
+
+		public int getProfileWidth() {
+			return getEndingCol() - getStartingCol();
+		}
+	}
+
+	private ArrayList<ProjectionProfile> buildProjectionProfile() {
+		ArrayList<ProjectionProfile> groups = new ArrayList<ProjectionProfile>();
+		ArrayList<Integer> histogram = buildGraph();
+
+		int col = 0;
+		// System.out.println("height = " + height + " width = " + width);
+		while (col < width) {
+
+			if (histogram.get(col) != 0) {
+				ProjectionProfile p = new ProjectionProfile();
+				// p.setGrandTotal(0);
+				p.setStartingCol(col);
+				p.setGap(false);
+				while (col < width && histogram.get(col) != 0) {
+					// p.setGrandTotal(p.getGrandTotal() + histogram.get(col));
+					if (p.getHighestNumberofPixels() < histogram.get(col))
+						p.setHighestNumberofPixels(histogram.get(col));
+					col++;
+				}
+				if (col < width)
+					p.setEndingCol(col);
+				else
+					p.setEndingCol(col - 1);
+				groups.add(p);
+			} else {
+				ProjectionProfile p = new ProjectionProfile();
+				p.setStartingCol(col);
+				p.setGap(true);
+				while (col < width && histogram.get(col) == 0) {
+					col++;
+				}
+
+				// if (row < height)
+				// row--;
+				if (col < width)
+					p.setEndingCol(col);
+				else
+					p.setEndingCol(col - 1);
+				groups.add(p);
+			}
+			// System.out.println("groups[" + (groups.size() - 1) + "] start = "
+			// + groups.get(groups.size() - 1).getStartingCol()
+			// + " end = " + groups.get(groups.size() - 1).getEndingCol()
+			// + " row = " + col + " isGap = "
+			// + String.valueOf(groups.get(groups.size() - 1).isGap())
+			// + " highestNumberofBlackPixels = "
+			// + groups.get(groups.size() - 1).getHighestNumberofPixels());
+
+		}
+		return groups;
+	}
+
+	private ArrayList<Integer> buildGraph() {
+		int row = 0;
+		int col = 0;
+		ArrayList<Integer> histogram = new ArrayList<Integer>();
+
+		while (col < width) {
+			int numberOfBlackPixels = 0;
+			for (row = 0; row < height; row++) {
+				if (image[row][col] == 1)
+					numberOfBlackPixels++;
+			}
+			histogram.add(numberOfBlackPixels);
+			// System.out.println("histogram[" + (histogram.size() - 1) + "] = "
+			// + histogram.get(histogram.size() - 1));
+			col++;
+		}
+
+		return histogram;
+	}
+
+	public int extractWords() {
+
+		ArrayList<ProjectionProfile> profiles = buildProjectionProfile();
+		int largestGap = 0;
+		Document document = Document.getInstance();
+		for (ProjectionProfile profile : profiles) {
+			if (profile.isGap()) {
+				int gapWidth = profile.getProfileWidth();
+				if (gapWidth > largestGap)
+					largestGap = gapWidth;
+			}
+		}
+
+		for (ProjectionProfile profile : profiles) {
+			Line line = document.getCurrentLine();
+			Word word = line.getCurrentWord();
+			if (profile.isGap()) {
+				int gapWidth = profile.getProfileWidth();
+				if (gapWidth > (int) (largestGap * 0.3)) {
+					// word breaker
+					line.addWord(word.getPostion() + 1);
+				}
+			} else {
+				// letter
+				if (profile.getProfileWidth() != 0) {
+					BufferedImage character = lineImage.getSubimage(
+							profile.getStartingCol(), 0,
+							profile.getProfileWidth(), height);
+					try {
+						String path = "E:/letters/" + picNum + ".png";
+						BufferedImage optimizedImage = Utils
+								.findAreaOfInterest(character);
+						if (optimizedImage != null) {
+							BufferedImage resizedImage;
+							int newWidth = optimizedImage.getWidth();
+							int newHeight = optimizedImage.getHeight();
+							if (((newWidth > DESIRED_WIDTH) && (newHeight > DESIRED_HEIGHT))) {
+								resizedImage = Utils
+										.getResizedImage(
+												optimizedImage,
+												DESIRED_WIDTH,
+												DESIRED_HEIGHT,
+												RenderingHints.VALUE_INTERPOLATION_BILINEAR,
+												true);
+
+								resizedImage = Utils.brutBinarize(resizedImage);
+								resizedImage = Utils
+										.generateImage(new Thinning().doZhangSuenThinning(Utils
+												.to2DArray(resizedImage)));
+
+								ImageIO.write(resizedImage, "png", new File(
+										path));
+								word.addLetter(picNum+"",
+										word.getCurrentPosition() + 1);
+								picNum++;
+							}
+							// if (((optimizedImage.getWidth() > DESIRED_WIDTH)
+							// && (optimizedImage.getHeight() >
+							// DESIRED_HEIGHT))) {
+							// ImageIO.write(optimizedImage, "png", new File(
+							// path));
+							// word.addLetter(path,
+							// word.getCurrentPosition() + 1);
+							// picNum++;
+							// }
+						}
+					} catch (IOException e) {
+
+						e.printStackTrace();
+
+					}
+				}
+			}
+		}
+
+		 System.out.println(document.toString());
+		return 0;
+	}
+}

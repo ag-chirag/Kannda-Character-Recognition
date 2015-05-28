@@ -1,0 +1,242 @@
+package main;
+
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+
+import javax.imageio.ImageIO;
+
+import Utils.Utils;
+
+public class HorizontalProjectionProfile {
+
+	int height;
+	int width;
+	int[][] image;
+
+	public HorizontalProjectionProfile(int[][] image) {
+		this.image = image;
+		this.height = image.length;
+		this.width = image[0].length;
+	}
+
+	private class ProjectionProfile {
+		private int startingRow;
+		private int endingRow;
+		private int highestNumberofPixels;
+		private boolean isGap;
+		private int grandTotal;
+
+		ProjectionProfile() {
+			highestNumberofPixels = 0;
+		}
+
+		public int getStartingRow() {
+			return startingRow;
+		}
+
+		public void setStartingRow(int startingRow) {
+			this.startingRow = startingRow;
+		}
+
+		public int getEndingRow() {
+			return endingRow;
+		}
+
+		public void setEndingRow(int endingRow) {
+			this.endingRow = endingRow;
+		}
+
+		public int getHighestNumberofPixels() {
+			return highestNumberofPixels;
+		}
+
+		public void setHighestNumberofPixels(int highestNumberofPixels) {
+			this.highestNumberofPixels = highestNumberofPixels;
+		}
+
+		public boolean isGap() {
+			return isGap;
+		}
+
+		public void setGap(boolean isGap) {
+			this.isGap = isGap;
+		}
+
+		public int getGrandTotal() {
+			return grandTotal;
+		}
+
+		public void setGrandTotal(int grandTotal) {
+			this.grandTotal = grandTotal;
+		}
+
+		public int getPixelDensity() {
+			return grandTotal / (width * height);
+		}
+	}
+
+	private ArrayList<ProjectionProfile> buildProjectionProfile() {
+		ArrayList<ProjectionProfile> groups = new ArrayList<ProjectionProfile>();
+		ArrayList<Integer> histogram = buildGraph();
+
+		int row = 0;
+		// System.out.println("height = " + height + " width = " + width);
+		while (row < height) {
+
+			if (histogram.get(row) != 0) {
+				ProjectionProfile p = new ProjectionProfile();
+				p.setGrandTotal(0);
+				p.setStartingRow(row);
+				p.setGap(false);
+				while (row < height && histogram.get(row) != 0) {
+					p.setGrandTotal(p.getGrandTotal() + histogram.get(row));
+					if (p.getHighestNumberofPixels() < histogram.get(row))
+						p.setHighestNumberofPixels(histogram.get(row));
+					row++;
+				}
+
+				// if (row < height)
+				// row--;
+				if(row < height)
+					p.setEndingRow(row);
+				else
+					p.setEndingRow(row - 1);
+				groups.add(p);
+			} else {
+				ProjectionProfile p = new ProjectionProfile();
+				p.setStartingRow(row);
+				p.setGap(true);
+				while (row < height && histogram.get(row) == 0) {
+					row++;
+				}
+
+				// if (row < height)
+				// row--;
+				
+				if(row < height)
+					p.setEndingRow(row);
+				else
+					p.setEndingRow(row - 1);
+				groups.add(p);
+			}
+			// System.out.println("groups[" + (groups.size() - 1) + "] start = "
+			// + groups.get(groups.size() - 1).getStartingRow()
+			// + " end = " + groups.get(groups.size() - 1).getEndingRow()
+			// + " row = " + row + " isGap = "
+			// + String.valueOf(groups.get(groups.size() - 1).isGap())
+			// + " highestNumberofBlackPixels = "
+			// + groups.get(groups.size() - 1).getHighestNumberofPixels());
+
+		}
+		return groups;
+	}
+
+	private ArrayList<Integer> buildGraph() {
+		int row = 0;
+		int col = 0;
+		ArrayList<Integer> histogram = new ArrayList<Integer>();
+
+		while (row < height) {
+			int numberOfBlackPixels = 0;
+			for (col = 0; col < width; col++) {
+				if (image[row][col] == 1)
+					numberOfBlackPixels++;
+			}
+			histogram.add(numberOfBlackPixels);
+			// System.out.println("histogram[" + (histogram.size() - 1) + "] = "
+			// + histogram.get(histogram.size() - 1));
+			row++;
+		}
+
+		return histogram;
+	}
+
+	public int extractLines(String path, int picNum) {
+
+		ArrayList<ProjectionProfile> profiles = buildProjectionProfile();
+		ArrayList<ProjectionProfile> final_lines = new ArrayList<ProjectionProfile>();
+		ArrayList<Integer> freqList = new ArrayList<Integer>();
+		int pos = 0;
+		for (int i = 0; i < profiles.size(); i++) {
+			if (!profiles.get(i).isGap())
+				freqList.add(profiles.get(i).getHighestNumberofPixels());
+		}
+		if (freqList.size() != 0) {
+			Collections.sort(freqList);
+			int heighest = freqList.get(freqList.size() - 1);
+			for (pos = 0; pos < profiles.size(); pos++)
+				if (profiles.get(pos).getHighestNumberofPixels() == heighest)
+					break;
+			double maximumValue = profiles.get(pos).getPixelDensity() * 0.8;
+
+			for (int i = 0; i < profiles.size(); i++) {
+				if (!profiles.get(i).isGap()) {
+					if (profiles.get(i).getPixelDensity() >= maximumValue) {
+						final_lines.add(profiles.get(i));
+					} else {
+						int gapBehind = 0;
+						int gapAhead = 0;
+						if (i != 0)
+							gapBehind = profiles.get(i - 1).getEndingRow()
+									- profiles.get(i - 1).getStartingRow();
+						if (i != profiles.size() - 1)
+							gapAhead = profiles.get(i + 1).getEndingRow()
+									- profiles.get(i + 1).getStartingRow();
+
+						if (gapAhead > gapBehind && final_lines.size() > 0)
+							final_lines.get(final_lines.size() - 1)
+									.setEndingRow(
+											profiles.get(i).getEndingRow());
+						else {
+							if (i != profiles.size() - 1) {
+								ProjectionProfile p = profiles.get(i + 1);
+								p.setStartingRow(profiles.get(i)
+										.getStartingRow());
+								final_lines.add(p);
+							}
+						}
+					}
+				}
+			}
+		}
+		BufferedImage buf_image = new BufferedImage(width, height,
+				BufferedImage.TYPE_INT_RGB);
+
+		buf_image = Utils.generateImage(image);
+
+		for (int i = 0; i < final_lines.size(); i++) {
+			ProjectionProfile p = final_lines.get(i);
+			int subImageHeight = p.getEndingRow() - p.getStartingRow();
+			BufferedImage subImage = null;
+			if (subImageHeight > 0)
+				subImage = buf_image.getSubimage(0, p.getStartingRow(), width,
+						subImageHeight);
+			int[][] areaOfInterest;
+			if (subImage != null) {
+				areaOfInterest = Utils.to2DArray(subImage);
+				try {
+					if (areaOfInterest != null) {
+						ImageIO.write(Utils.generateImage(areaOfInterest),
+								"png", new File(path + picNum++ + ".png"));
+						if (path.equals("E:/lines/")) {
+//							System.out.println(path + (picNum - 1) + ".png");
+							System.out.println("Final Lines : " + final_lines.size());
+								Document.getInstance().addLine(picNum - 1);
+								new VerticalProjectionProfile(areaOfInterest)
+										.extractWords();
+						}
+					}
+
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
+		return picNum;
+	}
+
+}

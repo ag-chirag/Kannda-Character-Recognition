@@ -1,0 +1,85 @@
+package main;
+
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintWriter;
+
+import javax.imageio.ImageIO;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.FormParam;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import logical.regression;
+import regression.miniHashing;
+
+import com.sun.jersey.core.header.FormDataContentDisposition;
+import com.sun.jersey.core.util.Base64;
+
+import Utils.Utils;
+
+@Path("recognise")
+public class Web {
+
+	@Path("{p}")
+	@GET
+	@Produces("application/json; charset=UTF-8")
+	public Response getReq(@PathParam("p") String p) {
+		Utils.clearFolders();
+		VerticalProjectionProfile.picNum = 1;
+		System.out.println("Called get : " + p);
+		BufferedImage image = null;
+		try {
+			image = ImageIO.read(new File("E:/uploads/" + p));
+			// String jsonString = "{\"result\":\"" + processFile(image) +
+			// "\"}";
+			// System.out.println(jsonString);
+			JSONObject json = new JSONObject();
+
+			json.put("result", processFile(image));
+			String result = json + "";
+			return Response.status(200).entity(result).build();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (JSONException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return null;
+	}
+
+	public static String processFile(BufferedImage image) {
+
+		regression.result = new StringBuilder();
+		Thinning th = new Thinning();
+		miniHashing h = new miniHashing();
+		regression r = new regression();
+		
+		int[][] imageData = null;
+		imageData = Utils.threshHoldBinarize(image);
+//		imageData = th.doZhangSuenThinning(imageData);
+		new HorizontalProjectionProfile(imageData).extractLines("E:/buffer/",1);
+		DeSkew.deSkewLines(1);
+		
+		h.methodforDocument();
+		r.method();
+		System.out.println("Recognition Done. Result : "
+				+ regression.result.toString());
+		return regression.result.toString();
+	}
+}

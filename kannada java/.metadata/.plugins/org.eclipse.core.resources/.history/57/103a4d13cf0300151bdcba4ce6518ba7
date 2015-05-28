@@ -1,0 +1,148 @@
+package main;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+
+public class Document {
+
+	private static Document positions;
+	private ArrayList<Line> line;
+	private HashMap<String, Letter> letters;
+	private Line currentLine;
+	private Document()
+	{
+		line = new ArrayList<Line>();
+		letters = new HashMap<String, Letter>();
+	}
+	
+	public static Document getInstance()
+	{
+		if(positions == null)
+			positions = new Document();		
+		return positions;	
+	}
+	
+	public void addLine(int pos)
+	{
+		Line l = new Line(pos);
+		this.currentLine = l;
+		line.add(l);
+	}
+	
+	public Line getCurrentLine()
+	{
+		return this.currentLine;
+	}
+	
+	public Letter getLetter(String path)
+	{
+		return letters.get(path);
+	}
+	
+	public class Line
+	{
+		int position;
+	    ArrayList<Word> words;
+	    Word currentWord = null;
+	    public Line(int position)
+	    {
+	    	this.position = position;
+	    	words = new ArrayList<Word>();
+	    }
+	    
+	    Word getCurrentWord()
+	    {
+	    	if(currentWord == null)
+	    	{
+	    		this.currentWord  = new Word(1);
+	    		words.add(currentWord);
+	    	}
+	    	return this.currentWord;
+	    }
+	    
+	    public void addWord(int pos)
+	    {
+	    	Word w = new Word(pos);
+	    	words.add(w);
+	    	this.currentWord = w;
+	    }
+	    
+	    public int getPosition()
+	    {
+	    	return this.position;
+	    }
+	}
+	
+	public class Word
+	{
+		int position;
+		Letter currentLetter = null;
+		public Word(int pos)
+		{
+			position = pos;
+		}
+		
+		public int getPostion()
+		{
+			return this.position;
+		}
+		
+		public void addLetter(String path, int pos)
+		{
+			Letter l = new Letter(pos);
+			this.currentLetter = l;
+			letters.put(path, l);
+		}
+		
+		public int getCurrentPosition()
+		{
+			if(currentLetter == null)
+				return 0;
+			return currentLetter.getPosition();
+		}
+	}
+	
+	public class Letter
+	{
+		String path;
+		int position;
+		Line line;
+		Word word;
+		public Letter(int position)
+		{
+			this.position = position;
+			this.line = Document.getInstance().getCurrentLine();
+			this.word = this.line.getCurrentWord();
+		}
+		
+		public int getPosition()
+		{
+			return position;
+		}
+		
+		public Line getLine()
+		{
+			return line;
+		}
+		
+		public Word getWord()
+		{
+			return word;
+		}
+	}
+	
+	public String toString()
+	{
+		String string = "";
+		
+		for (HashMap.Entry<String, Letter> entry : letters.entrySet())
+		{
+		    string += entry.getKey() + "{ Line:";
+		    string += entry.getValue().getLine().getPosition() + ", Word:";
+		    string += entry.getValue().getWord().getPostion() + ", LetterPosition:";
+		    string += entry.getValue().getPosition() + " }\n";
+		}
+		
+		return string;
+	}
+}
